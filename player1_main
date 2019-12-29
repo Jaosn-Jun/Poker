@@ -1,0 +1,443 @@
+import sys, time
+import random
+import socket
+import pygame
+from pygame.locals import Color, QUIT, MOUSEBUTTONDOWN, USEREVENT, USEREVENT
+
+
+WINDOW_WIDTH = 1000
+WINDOW_HEIGHT = 800
+WHITE = (255, 255, 255)
+IMAGEWIDTH = 67
+IMAGEHEIGHT = 97
+FPS = 60
+
+
+class Card(pygame.sprite.Sprite):
+    def __init__(self,number,x,y):
+        super().__init__()
+        self.num=number
+        self.raw_image = pygame.image.load(f'poker_image/{number}.jpg').convert_alpha()
+        self.image = pygame.transform.scale(self.raw_image, (IMAGEWIDTH, IMAGEHEIGHT))
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (x, y)
+        self.x = x
+        self.y = y
+        self.state = "down"
+        
+    def up(self):
+        self.rect.move_ip(0, -IMAGEHEIGHT/3)
+        self.y -= IMAGEHEIGHT/3
+        self.state = "up"
+        pygame.mixer.music.load("poker_image/sound.mp3")
+        pygame.mixer.music.play(0)
+        
+    def down(self):
+        self.rect.move_ip(0,IMAGEHEIGHT/3)
+        self.y += IMAGEHEIGHT/3
+        self.state = "down"
+        pygame.mixer.music.load("poker_image/sound.mp3")
+        pygame.mixer.music.play(0)
+    
+    def __str__(self):
+        return self.num
+    
+class button:
+    def __init__(self,bg, po_x, po_y, size, text, text_size):
+        pygame.draw.rect(bg, (255,255,255),[po_x, po_y, size, size*0.6], 0)
+        pygame.draw.rect(bg, (0,0,0),[po_x, po_y, size, size*0.6], 4)
+        self.my_font = pygame.font.SysFont(None, text_size)
+        self.text_length=len(text)
+        self.text = self.my_font.render(text, True, (0, 0, 0))
+        self.po_x = po_x
+        self.po_y = po_y
+        self.size_x = size
+        self.size_y = size*0.6
+        self.text_size=text_size
+        
+    def blit(self, window_surface):
+        window_surface.blit(self.text, (self.po_x+self.size_x/self.text_length/self.text_size*25, self.po_y-self.size_x/1.25))
+
+
+def distinct(cards):
+    distribute = []
+    for num in cards:
+        distribute.append(num.num)
+    distribute=sorted(distribute)
+    di_num=[]
+    di_suit=[]
+    for i in range(len(distribute)):
+        di_num.append(distribute[i]//4)
+        di_suit.append(distribute[i]%4)
+    if len(distribute)==1:
+        return ("single", distribute[0])
+    elif len(distribute)==2 and len(set(di_num)) == 1:
+        return ("pair", di_num[0], max(di_suit))
+    elif len(distribute)==5:
+        
+        if di_num == [1,2,3,4,13]:
+            if len(set(di_suit)) == 1:
+                return ("straight flush", 9, di_suit[0])
+            else :
+                return ("straight", 9, max(distribute))
+        elif di_num == [1,2,3,12,13]:
+            if len(set(di_suit)) == 1:
+                return ("straight flush", 0, di_suit[0])   
+            else:
+                return ("straight", 0, max(distribute))
+        else:
+            for i in range(8):   
+                straight = []
+                for j in range(5):
+                    straight.append(i + j)
+                if di_num == straight:
+                    di_straight = i+1
+                if di_num == straight:
+                    if len(set(di_suit))==1:
+                        return ("straight flush", di_straight, di_suit[0])
+                    else:
+                        return ("straight", di_straight, max(distribute))
+        if len(set(di_num))==2:
+            l=di_num[:]
+            i=0
+            a=l[0]
+            num = 0
+            while a in l:
+                l.remove(a)
+                i += 1
+                num = a
+            if i == 1:
+                return ("four of a king", l[0])
+            elif i == 4:
+                return ("four of a king", num)
+            elif i == 2:
+                return ("full house", l[0])
+            elif i == 3:
+                return ("full house", num)
+        else:
+            return "nothing"
+                    
+
+
+def main():
+    pygame.init()  
+    deck=[]
+    for number in range(0,52):
+        deck.append(number)
+    random.shuffle(deck)
+    player1_hand = deck[:13]
+    player2_hand = deck[13:26]
+    player1_hand = sorted(player1_hand)
+    playrt2_hand = sorted(player2_hand)
+    
+    if min(player1_hand) < min(player2_hand):
+        turn = 0
+        player2_hand.append(1)
+        first = "your "
+    else:
+        turn = 1
+        first = "opponent's "
+        player2_hand.append(0)
+    hand2str = ''
+    for i in player2_hand:
+        hand2str += str(i) + " "
+        
+    
+    HOST = ""
+    PORT = 7000
+    print("主機名稱:",socket.gethostname())
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print('# Socket created')
+    # Create socket on port
+    try:
+        s.bind((HOST, PORT))
+    except socket.error as msg:
+        print('# Bind failed. ')
+        sys.exit()
+
+    s.listen(10)
+        
+    print('# Socket now listening')
+    conn, addr = s.accept()
+    conn.settimeout(1.0)
+    print('# Connected to ' + addr[0] + ':' + str(addr[1]))
+    msg = hand2str
+    k=str.encode(msg)
+    conn.send(k)
+    
+    
+    bg = pygame.image.load('poker_image/background.jpg')
+    accept = player1_hand
+    sorted(accept)
+    
+    window_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+    pygame.display.set_caption('poker')
+    hand=[]
+    for i in range(len(accept)):
+        hand.append(Card(accept[i],IMAGEWIDTH*i,WINDOW_HEIGHT-IMAGEHEIGHT))
+    
+    my_font = pygame.font.SysFont(None, 30)    
+    my_hit_font = pygame.font.SysFont(None, 40)       
+    
+    main_clock = pygame.time.Clock()
+    
+    PLAY = button(bg, 900, 600, 100, "PLAY", 40)
+    PASS = button(bg, 800, 600, 100, "PASS", 40)
+    
+    card_throwed = []
+    desk = []
+    throw_success = False
+    throw_type = []
+    desk_type = []
+    
+    opponent_hand = 13
+    first_font = pygame.font.SysFont(None, 100)
+    my_font = pygame.font.SysFont(None, 100)
+    game_font = pygame.font.SysFont(None, 300)
+    game = ""
+    run = True
+    text = my_font.render(game, True, (0, 0, 0))
+    _pass = ''
+    hand_number = my_font.render("X" + str(opponent_hand), True, (0, 0, 0))
+    Pass = my_font.render(_pass, True, (255, 255, 255))
+    First = my_font.render(first + "turn", True, (255, 255, 0))
+    
+    a=pygame.Surface((222, 60))
+    b=a.get_rect()
+    b.topleft=(300,300)
+    YELLO=(255,255,0)
+    WHITE=(255,255,255)
+    window_surface.blit(pygame.Surface((700,75)),(50,390))
+    c = pygame.font.SysFont(None, 100)
+    bg1 = pygame.image.load('poker_image/background1.png')
+    window_surface.blit(bg1,(0,0))
+    window_surface.blit(c.render('START',True,(0,0,0)),(300,300))
+    
+    
+    
+    
+    
+    
+    
+    pygame.mixer.music.load("poker_image/sound_background.mp3")
+    pygame.mixer.music.play(-1)
+    
+    while True:
+        
+        flag=False
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                s.close()
+                pygame.quit()
+                sys.exit()
+            elif b.collidepoint(pygame.mouse.get_pos()):
+                a.fill(YELLO)
+                if event.type == MOUSEBUTTONDOWN:
+                    flag=True
+            else:
+                a.fill(WHITE)
+        if flag:
+            break
+        window_surface.blit(a,(300,300))
+        window_surface.blit(c.render('START',True,(0,0,0)),(300,300))
+        pygame.display.update()
+    
+    pygame.mixer.music.stop()
+    
+    
+    while True:
+        
+        for event in pygame.event.get():
+            
+            if event.type == QUIT:
+                s.close()
+                pygame.quit()
+                sys.exit()
+           
+            elif (opponent_hand == 0 or len(hand) == 0) and run:
+                turn = 1 
+                run = False
+                if len(hand) == 0:
+                    game = "WIN"
+                    pygame.mixer.music.load("poker_image/sound_win.mp3")
+                    pygame.mixer.music.play(0)
+                elif opponent_hand == 0:
+                    game = "LOSE"
+                    pygame.mixer.music.load("poker_image/sound_lose.mp3")
+                    pygame.mixer.music.play(0)
+                s.close()
+                text = game_font.render(game, True, (0, 0, 0))
+                First = my_font.render("", True, (255, 255, 0))
+            elif turn == 1 and run:
+                try :
+                    data = conn.recv(1024)
+                    recv_str = data.decode('UTF-8')
+                    if recv_str == "pass":
+                        desk = []
+                        _pass = "PASS"
+                        
+                    else:
+                        recv = recv_str.split(" ")
+                        recv.remove("")
+                        desk = []
+                        for i in range(len(recv)):        
+                            desk.append(Card(int(recv[i]), 300 + IMAGEWIDTH*i, 350))
+                        opponent_hand -= len(recv)
+                        _pass = ''
+                    pygame.mixer.music.load("poker_image/sound.mp3")
+                    pygame.mixer.music.play(0)
+                    hand_number = my_font.render("X" + str(opponent_hand), True, (0, 0, 0))
+                    Pass = my_font.render(_pass, True, (0, 0, 0))
+                    turn = 0
+                    first = "your "
+                    First = my_font.render(first + "turn", True, (255, 255, 0))
+                except socket.timeout:
+                    pass
+               
+            elif event.type == MOUSEBUTTONDOWN and turn == 0:
+                    
+                x,y = event.pos
+                
+                for card in hand:
+                    if card.x < x < card.x + IMAGEWIDTH and card.y < y < card.y + IMAGEHEIGHT and card.state == "down":
+                        card.up()
+                        card_throwed.append(card)
+                    elif card.x < x < card.x + IMAGEWIDTH and card.y < y < card.y + 4*IMAGEHEIGHT/3 and card.state == "up":
+                        card.down()
+                        card_throwed.remove(card)
+    
+                if PLAY.po_x< x <PLAY.po_x + PLAY.size_x and PLAY.po_y - PLAY.size_x < y < PLAY.po_y - PLAY.size_x*0.4 and len(card_throwed) != 0 :
+                    throw_type = distinct(card_throwed)
+                    desk_type = distinct(desk)
+                    
+                    if throw_type == None:
+                        pass
+                    elif throw_type[0] == "nothing":
+                        pass
+                
+                    elif throw_type[0] == 'single':
+                        if len(desk) == 0:
+                            throw_success = True
+                        elif desk_type[0] == 'single':
+                            if throw_type[1] > desk_type[1]:
+                                throw_success = True
+                            
+                    elif throw_type[0] == 'pair':
+                        if len(desk) == 0:
+                            throw_success = True
+                        elif desk_type[0] == 'pair': 
+                            if throw_type[1] > desk_type[1]:
+                                throw_success = True
+                            elif throw_type[1] == desk_type[1]:
+                                if throw_type[2] > desk_type[2]:
+                                    throw_success = True
+                        
+                    elif throw_type[0] == 'straight flush':
+                        if len(desk) == 0:
+                            throw_success = True
+                        elif desk_type[0] == 'straight flush':
+                            if throw_type[1] > desk_type[1]:
+                                throw_success = True
+                            elif throw_type[1] == desk_type[1] and throw_type[2] > desk_type[2]:
+                                throw_success = True
+                        else :
+                            throw_success = True
+                            
+                    elif throw_type[0] == 'straight':
+                        if len(desk) == 0:
+                            throw_success = True
+                        elif desk_type[0] == 'straight':
+                            if throw_type[1] > desk_type[1]:
+                                throw_success = True
+                            elif throw_type[1] == desk_type[1] and throw_type[2] > desk_type[2]:
+                                throw_success = True
+                            
+                    elif throw_type[0] == 'full house':
+                        if len(desk) == 0:
+                            throw_success = True
+                        elif desk_type[0] == 'full house':
+                            if throw_type[1] > desk_type[1]:
+                                throw_success = True
+                            
+                        
+                    elif throw_type[0] == 'four of a king':
+                        if len(desk) == 0:
+                            throw_success = True
+                        elif desk_type[0] == 'four of a king':
+                            if throw_type[1] > desk_type[1]:
+                                throw_success = True
+                            elif throw_type[1] == desk_type[1] and throw_type[2] > desk_type[2]:
+                                throw_success = True
+                        elif throw_type[0] != "straight flush":
+                            throw_success = True 
+                    
+                    if throw_success:
+                        for card in card_throwed:    
+                            hand.remove(card)
+                        for i in range(len(card_throwed)):
+                            card_throwed[i].rect.topleft = (300 + IMAGEWIDTH*i, 350)
+                        desk = card_throwed[:]
+                        
+                        pygame.mixer.music.load("poker_image/sound.mp3")
+                        pygame.mixer.music.play(0)
+                        
+                        
+                        throw_str = ''
+                        for i in card_throwed:
+                            throw_str += str(i.num) + " "
+                        msg = throw_str
+                        k=str.encode(msg)
+                        conn.send(k)
+                        
+                        
+                        card_throwed = []
+                        for j in range(len(hand)):
+                            hand[j].rect.topleft = (IMAGEWIDTH*j, 703)
+                            hand[j].x = IMAGEWIDTH * j
+                        throw_success = False
+                        turn = 1
+                        
+                        first = "opponent's "
+                        First = my_font.render(first + "turn", True, (255, 255, 0))
+                        
+                elif PASS.po_x< x <PASS.po_x + PASS.size_x and PASS.po_y - PASS.size_x < y < PASS.po_y - PASS.size_x*0.4 :
+                    for card in hand:
+                        if card.state == "up":
+                            card.down()
+                    desk = []
+                    turn = 1
+                    msg = "pass"
+                    k=str.encode(msg)
+                    conn.send(k)
+                    pygame.mixer.music.load("poker_image/sound.mp3")
+                    pygame.mixer.music.play(0)
+                    first = "opponent's "
+                    First = my_font.render(first + "turn", True, (255, 255, 0))
+        
+        window_surface.blit(bg, (0,-100))
+        
+        if len(desk)!=0:
+            for card in desk:
+                window_surface.blit(card.image, card.rect)
+        for card in hand: 
+            window_surface.blit(card.image, card.rect)
+        PLAY.blit(window_surface)
+        PASS.blit(window_surface)
+        
+        
+        window_surface.blit(Pass, (400,150))
+        window_surface.blit(hand_number, (400,50))
+        window_surface.blit(text, (250,400))
+        window_surface.blit(First, (300,600))
+        
+        
+        pygame.display.update()
+        main_clock.tick(FPS)
+        
+        
+        
+if __name__ == '__main__':    
+    main()
+
+    
+    
