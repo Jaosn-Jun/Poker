@@ -38,6 +38,7 @@ class Card(pygame.sprite.Sprite):
         self.state = "down"
         pygame.mixer.music.load("poker_image/sound.mp3")
         pygame.mixer.music.play(0)
+        
     
     def __str__(self):
         return self.num
@@ -74,7 +75,7 @@ def distinct(cards):
     elif len(distribute)==2 and len(set(di_num)) == 1:
         return ("pair", di_num[0], max(di_suit))
     elif len(distribute)==5:
-        
+        # distinct straight and straight flush
         if di_num == [1,2,3,4,13]:
             if len(set(di_suit)) == 1:
                 return ("straight flush", 9, di_suit[0])
@@ -121,55 +122,24 @@ def distinct(cards):
 
 def main():
     pygame.init()  
-    deck=[]
-    for number in range(0,52):
-        deck.append(number)
-    random.shuffle(deck)
-    player1_hand = deck[:13]
-    player2_hand = deck[13:26]
-    player1_hand = sorted(player1_hand)
-    playrt2_hand = sorted(player2_hand)
+    hostname = input("輸入要連線的主機名稱: ")
     
-    if min(player1_hand) < min(player2_hand):
-        turn = 0
-        player2_hand.append(1)
-        first = "your "
-    else:
-        turn = 1
-        first = "opponent's "
-        player2_hand.append(0)
-    hand2str = ''
-    for i in player2_hand:
-        hand2str += str(i) + " "
-        
-    
-    HOST = ""
-    PORT = 7000
-    print("主機名稱:",socket.gethostname())
+    ip = socket.gethostbyname(hostname)
+    port=7000
+    print(ip)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print('# Socket created')
-    # Create socket on port
-    try:
-        s.bind((HOST, PORT))
-    except socket.error as msg:
-        print('# Bind failed. ')
-        sys.exit()
-
-    s.listen(10)
-        
-    print('# Socket now listening')
-    conn, addr = s.accept()
-    conn.settimeout(1.0)
-    print('# Connected to ' + addr[0] + ':' + str(addr[1]))
-    msg = hand2str
-    k=str.encode(msg)
-    conn.send(k)
-    
+    s.connect((ip,port))
+    data = s.recv(1024)
+    recv_str = data.decode('UTF-8')
+    recv = recv_str.split(" ")
+    recv.remove("")
+    for i in range(len(recv)):
+        recv[i] = int(recv[i])
     
     bg = pygame.image.load('poker_image/background.jpg')
-    accept = player1_hand
-    sorted(accept)
-    
+    accept = recv[:len(recv)-1]
+    accept = sorted(accept)
+    # load window surface
     window_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption('poker')
     hand=[]
@@ -177,21 +147,18 @@ def main():
         hand.append(Card(accept[i],IMAGEWIDTH*i,WINDOW_HEIGHT-IMAGEHEIGHT))
     
     my_font = pygame.font.SysFont(None, 30)    
-    my_hit_font = pygame.font.SysFont(None, 40)       
-    
+    my_hit_font = pygame.font.SysFont(None, 40)      
+    hit_text_surface = None    
     main_clock = pygame.time.Clock()
     
     PLAY = button(bg, 900, 600, 100, "PLAY", 40)
     PASS = button(bg, 800, 600, 100, "PASS", 40)
-    
     card_throwed = []
     desk = []
     throw_success = False
     throw_type = []
     desk_type = []
-    
     opponent_hand = 13
-    first_font = pygame.font.SysFont(None, 100)
     my_font = pygame.font.SysFont(None, 100)
     game_font = pygame.font.SysFont(None, 300)
     game = ""
@@ -200,7 +167,15 @@ def main():
     _pass = ''
     hand_number = my_font.render("X" + str(opponent_hand), True, (0, 0, 0))
     Pass = my_font.render(_pass, True, (255, 255, 255))
+    
+    turn = recv[-1]
+    if turn == 0:
+        first = "your "
+    elif turn == 1:
+        first = "opponent's "
     First = my_font.render(first + "turn", True, (255, 255, 0))
+    s.settimeout(1.0)
+    
     
     a=pygame.Surface((222, 60))
     b=a.get_rect()
@@ -213,17 +188,10 @@ def main():
     window_surface.blit(bg1,(0,0))
     window_surface.blit(c.render('START',True,(0,0,0)),(300,300))
     
-    
-    
-    
-    
-    
-    
     pygame.mixer.music.load("poker_image/sound_background.mp3")
     pygame.mixer.music.play(-1)
     
     while True:
-        
         flag=False
         for event in pygame.event.get():
             if event.type == QUIT:
@@ -241,15 +209,13 @@ def main():
         window_surface.blit(a,(300,300))
         window_surface.blit(c.render('START',True,(0,0,0)),(300,300))
         pygame.display.update()
-    
     pygame.mixer.music.stop()
-    
-    
     while True:
         if turn == 1 and run:
             try :
-                data = conn.recv(1024)
-                recv_str = data.decode('UTF-8')
+                data = s.recv(1024)
+                recv_str = data.decode('UTF-8')# convert to string (Python 3 only)
+                    
                 if recv_str == "pass":
                     desk = []
                     _pass = "PASS"
@@ -258,7 +224,7 @@ def main():
                     recv = recv_str.split(" ")
                     recv.remove("")
                     desk = []
-                    for i in range(len(recv)):      
+                    for i in range(len(recv)):        
                         desk.append(Card(int(recv[i]), 300 + IMAGEWIDTH*i, 350))
                     opponent_hand -= len(recv)
                     _pass = ''
@@ -269,7 +235,7 @@ def main():
                 turn = 0
                 first = "your "
                 First = my_font.render(first + "turn", True, (255, 255, 0))
-            except socket.timeout:
+             except socket.timeout:
                 pass
         
         for event in pygame.event.get():
@@ -278,7 +244,6 @@ def main():
                 s.close()
                 pygame.quit()
                 sys.exit()
-           
             elif (opponent_hand == 0 or len(hand) == 0) and run:
                 turn = 1 
                 run = False
@@ -293,7 +258,32 @@ def main():
                 s.close()
                 text = game_font.render(game, True, (0, 0, 0))
                 First = my_font.render("", True, (255, 255, 0))
-            
+            """elif turn == 1 and run:
+                try :
+                    data = s.recv(1024)
+                    recv_str = data.decode('UTF-8')# convert to string (Python 3 only)
+                    
+                    if recv_str == "pass":
+                        desk = []
+                        _pass = "PASS"
+                        
+                    else:
+                        recv = recv_str.split(" ")
+                        recv.remove("")
+                        desk = []
+                        for i in range(len(recv)):        
+                            desk.append(Card(int(recv[i]), 300 + IMAGEWIDTH*i, 350))
+                        opponent_hand -= len(recv)
+                        _pass = ''
+                    pygame.mixer.music.load("poker_image/sound.mp3")
+                    pygame.mixer.music.play(0)
+                    hand_number = my_font.render("X" + str(opponent_hand), True, (0, 0, 0))
+                    Pass = my_font.render(_pass, True, (0, 0, 0))
+                    turn = 0
+                    first = "your "
+                    First = my_font.render(first + "turn", True, (255, 255, 0))
+                except socket.timeout:
+                    pass"""
                
             elif event.type == MOUSEBUTTONDOWN and turn == 0:
                     
@@ -308,6 +298,7 @@ def main():
                         card_throwed.remove(card)
     
                 if PLAY.po_x< x <PLAY.po_x + PLAY.size_x and PLAY.po_y - PLAY.size_x < y < PLAY.po_y - PLAY.size_x*0.4 and len(card_throwed) != 0 :
+                    
                     throw_type = distinct(card_throwed)
                     desk_type = distinct(desk)
                     
@@ -328,6 +319,7 @@ def main():
                             throw_success = True
                         elif desk_type[0] == 'pair': 
                             if throw_type[1] > desk_type[1]:
+                                
                                 throw_success = True
                             elif throw_type[1] == desk_type[1]:
                                 if throw_type[2] > desk_type[2]:
@@ -359,7 +351,8 @@ def main():
                         elif desk_type[0] == 'full house':
                             if throw_type[1] > desk_type[1]:
                                 throw_success = True
-                            
+                            elif throw_type[1] == desk_type[1] and throw_type[2] > desk_type[2]:
+                                throw_success = True
                         
                     elif throw_type[0] == 'four of a king':
                         if len(desk) == 0:
@@ -387,8 +380,8 @@ def main():
                         for i in card_throwed:
                             throw_str += str(i.num) + " "
                         msg = throw_str
-                        k=str.encode(msg)
-                        conn.send(k)
+                        k = str.encode(msg)
+                        s.send(k)
                         
                         
                         card_throwed = []
@@ -401,20 +394,21 @@ def main():
                         first = "opponent's "
                         First = my_font.render(first + "turn", True, (255, 255, 0))
                         
-                elif PASS.po_x< x <PASS.po_x + PASS.size_x and PASS.po_y - PASS.size_x < y < PASS.po_y - PASS.size_x*0.4 :
+                elif PASS.po_x < x < PASS.po_x + PASS.size_x and PASS.po_y - PASS.size_x < y < PASS.po_y - PASS.size_x*0.4 :
                     for card in hand:
                         if card.state == "up":
                             card.down()
                     desk = []
                     turn = 1
                     msg = "pass"
-                    k=str.encode(msg)
-                    conn.send(k)
+                    k = str.encode(msg)
+                    s.send(k)
                     pygame.mixer.music.load("poker_image/sound.mp3")
                     pygame.mixer.music.play(0)
                     first = "opponent's "
                     First = my_font.render(first + "turn", True, (255, 255, 0))
         
+        # 背景顏色，清除畫面
         window_surface.blit(bg, (0,-100))
         
         if len(desk)!=0:
@@ -428,10 +422,8 @@ def main():
         
         window_surface.blit(Pass, (400,150))
         window_surface.blit(hand_number, (400,50))
-        window_surface.blit(text, (250,400))
+        window_surface.blit(text, (300,400))
         window_surface.blit(First, (300,600))
-        
-        
         pygame.display.update()
         main_clock.tick(FPS)
         
