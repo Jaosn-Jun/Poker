@@ -246,6 +246,31 @@ def main():
     
     
     while True:
+        if turn == 1 and run:
+            try :
+                data = conn.recv(1024)
+                recv_str = data.decode('UTF-8')
+                if recv_str == "pass":
+                    desk = []
+                    _pass = "PASS"
+                        
+                else:
+                    recv = recv_str.split(" ")
+                    recv.remove("")
+                    desk = []
+                    for i in range(len(recv)):      
+                        desk.append(Card(int(recv[i]), 300 + IMAGEWIDTH*i, 350))
+                    opponent_hand -= len(recv)
+                    _pass = ''
+                pygame.mixer.music.load("poker_image/sound.mp3")
+                pygame.mixer.music.play(0)
+                hand_number = my_font.render("X" + str(opponent_hand), True, (0, 0, 0))
+                Pass = my_font.render(_pass, True, (0, 0, 0))
+                turn = 0
+                first = "your "
+                First = my_font.render(first + "turn", True, (255, 255, 0))
+            except socket.timeout:
+                pass
         
         for event in pygame.event.get():
             
@@ -268,31 +293,7 @@ def main():
                 s.close()
                 text = game_font.render(game, True, (0, 0, 0))
                 First = my_font.render("", True, (255, 255, 0))
-            elif turn == 1 and run:
-                try :
-                    data = conn.recv(1024)
-                    recv_str = data.decode('UTF-8')
-                    if recv_str == "pass":
-                        desk = []
-                        _pass = "PASS"
-                        
-                    else:
-                        recv = recv_str.split(" ")
-                        recv.remove("")
-                        desk = []
-                        for i in range(len(recv)):        
-                            desk.append(Card(int(recv[i]), 300 + IMAGEWIDTH*i, 350))
-                        opponent_hand -= len(recv)
-                        _pass = ''
-                    pygame.mixer.music.load("poker_image/sound.mp3")
-                    pygame.mixer.music.play(0)
-                    hand_number = my_font.render("X" + str(opponent_hand), True, (0, 0, 0))
-                    Pass = my_font.render(_pass, True, (0, 0, 0))
-                    turn = 0
-                    first = "your "
-                    First = my_font.render(first + "turn", True, (255, 255, 0))
-                except socket.timeout:
-                    pass
+            
                
             elif event.type == MOUSEBUTTONDOWN and turn == 0:
                     
@@ -438,6 +439,5 @@ def main():
         
 if __name__ == '__main__':    
     main()
-
     
     
